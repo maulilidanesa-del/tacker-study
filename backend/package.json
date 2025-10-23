@@ -1,0 +1,82 @@
+{
+  "name":"study-tacker-backend",
+  "version":"1.0.0"
+  "main":"server.js",
+  "dependencies":{
+    "express":"^44.18.2",
+    "cors":"^2.8.5",
+    "bodyparser":"^1.20.2",
+    "fs-extra":"^11.1.1"
+  },
+  "scripts":{
+    "start":"node server.js"
+  }
+}
+{
+  "users": []
+}
+const express = require('express');
+const cors = require('cors');
+const bodyParser = require('body-parser');
+const fs = require('fs-extra');
+const path = require('path');
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.use(cors());
+app.use(bodyParser.json());
+
+const DB_FILE = path.join(__dirname, 'db.json');
+
+async function readDB() {
+    return fs.readJson(DB_FILE);
+}
+async function writeDB(data) {
+    return fs.writeJson(DB_FILE, data, { spaces: 2 });
+}
+
+// Register
+app.post('/register', async (req, res) => {
+    const { email, password } = req.body;
+    const db = await readDB();
+    if (db.users.find(u => u.email === email)) {
+        return res.status(400).json({ message: 'Email sudah terdaftar' });
+    }
+    db.users.push({ email, password, history: [] });
+    await writeDB(db);
+    res.json({ message: 'Registrasi berhasil' });
+});
+
+// Login
+app.post('/login', async (req, res) => {
+    const { email, password } = req.body;
+    const db = await readDB();
+    const user = db.users.find(u => u.email === email && u.password === password);
+ if (!user) return res.status(400).json({ message: 'Email atau password salah' });
+    res.json({ message: 'Login berhasil', user: { email, history: user.history } });
+});
+
+// Add study session
+app.post('/add-session', async (req, res) => {
+    const { email, seconds } = req.body;
+    const db = await readDB();
+    const user = db.users.find(u => u.email === email);
+    if (!user) return res.status(400).json({ message: 'User tidak ditemukan' });
+    const today = new Date().toLocaleDateString();
+    user.history.push({ date: today, seconds });
+    await writeDB(db);
+    res.json({ message: 'Sesi berhasil ditambahkan', history: user.history });
+});
+
+// Get history
+app.get('/history/:email', async (req, res) => {
+    const db = await readDB();
+    const user = db.users.find(u => u.email === req.params.email);
+    if (!user) return res.status(400).json({ message: 'User tidak ditemukan' });
+    res.json({ history: user.history });
+});
+
+app.listen(PORT, () => {
+    console.log(Backend running on port ${PORT});
+});
